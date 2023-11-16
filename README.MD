@@ -1,7 +1,7 @@
 # pwsh prompt
 
 轻量级自定义的pwsh（powershell）提示符。
-附带一个改变输入输出编码的函数`chcp`。
+附带一个改变输入输出编码的函数`chcp`，以及一个简易的提权函数`sudo`。
 
 
 ## 依赖
