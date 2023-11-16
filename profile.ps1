@@ -1,19 +1,19 @@
+function global:sudo ([string]$programName = "pwsh", [Parameter(ValueFromRemainingArguments)][string[]]$programeArgs) {
+    Start-Process -FilePath $programName -Verb runAs -Wait -ArgumentList $programeArgs
+}
+
 function global:chcp ([int]$CodePage = 936) {
     # 65001: Unicode; 936: GB2312
     [System.Console]::InputEncoding = [System.Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding($CodePage)
 }
 
 function global:Prompt {
-    # # 支持conda
-    # if ($Env:CONDA_PROMPT_MODIFIER) {
-    #     $Env:CONDA_PROMPT_MODIFIER | Write-Host -NoNewline
-    # }
+    # 支持conda
+    if ($Env:CONDA_PROMPT_MODIFIER) {
+        $Env:CONDA_PROMPT_MODIFIER | Write-Host -NoNewline
+    }
     # 显示管理员模式
-    $private:identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $private:principal = [Security.Principal.WindowsPrincipal] $private:identity
-    $private:adminRole = [Security.Principal.WindowsBuiltInRole]::Administrator
-    $private:isAdmin = $private:principal.IsInRole($private:adminRole)
-    if ($private:isAdmin) { 
+    if ($global:isAdmin) { 
         Write-Host "[ADMIN]" -NoNewline -BackgroundColor red 
         Write-Host " " -NoNewline
     }
@@ -22,7 +22,7 @@ function global:Prompt {
         # 如果有执行过命令，但不是没执行新的命令
         $global:LastCommandID = (Get-History)[-1].Id
         $private:lastCommand = Get-History -Count 1
-        $private:executionTime = $private:lastCommand.EndExecutionTime - $private:lastCommand.StartExecutionTime
+        $private:executionTime = $private:lastCommand.Duration
         $private:displayMSLimit = [System.TimeSpan]::FromSeconds(5)
         if ($private:executionTime -ge $private:displayMSLimit) {
             $private:shortTime = [System.Math]::Round($private:executionTime.TotalSeconds, 1)
@@ -45,8 +45,15 @@ function global:Prompt {
     return " $('→' * ($global:nestedPromptLevel + 1)) " # 改回默认输出颜色
 }
 
-# 切换到Unicode（与conda有兼容性问题）
-chcp(65001)
+# # 切换到Unicode（与conda有兼容性问题）
+# chcp(65001)
+
+# 计算Admin身份
+$private:identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$private:principal = [Security.Principal.WindowsPrincipal] $private:identity
+$private:adminRole = [Security.Principal.WindowsBuiltInRole]::Administrator
+$global:isAdmin = $private:principal.IsInRole($private:adminRole)
+Remove-Item -Path Variable:\identity, Variable:\principal, Variable:\adminRole
 
 # 语法错误高亮
 Set-PSReadLineOption -PromptText "→ "
