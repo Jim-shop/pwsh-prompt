@@ -1,5 +1,14 @@
-function global:sudo ([string]$programName = "pwsh", [Parameter(ValueFromRemainingArguments)][string[]]$programeArgs) {
-    Start-Process -FilePath $programName -Verb runAs -Wait -ArgumentList $programeArgs
+function global:sudo ([Parameter(ValueFromRemainingArguments)][string[]]$arg) {
+    if ($arg.Count -ne 0) {
+        $private:argList = @("-nop", "-c") + $arg + @(";", "pause")
+    }
+    elseif ((Get-History).Count -ne 0) {
+        $private:argList = @("-nop", "-c", (Get-History -Count 1).CommandLine, ";" , "pause")
+    }
+    else {
+        $private:argList = @()
+    }
+    Start-Process -FilePath "pwsh" -Verb runAs -Wait -ArgumentList $private:argList
 }
 
 function global:chcp ([int]$CodePage = 936) {
