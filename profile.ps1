@@ -1,14 +1,10 @@
 function global:sudo ([Parameter(ValueFromRemainingArguments)][string[]]$arg) {
     if ($arg.Count -ne 0) {
         $private:argList = @("-nop", "-c") + $arg + @(";", "pause")
+        Start-Process -FilePath "pwsh" -Verb runAs -Wait -ArgumentList $private:argList
+    } else {
+        Write-Error "你要 sudo 什么？"
     }
-    elseif ((Get-History).Count -ne 0) {
-        $private:argList = @("-nop", "-c", (Get-History -Count 1).CommandLine, ";" , "pause")
-    }
-    else {
-        $private:argList = @()
-    }
-    Start-Process -FilePath "pwsh" -Verb runAs -Wait -ArgumentList $private:argList
 }
 
 function global:chcp ([int]$CodePage = 936) {
@@ -17,10 +13,14 @@ function global:chcp ([int]$CodePage = 936) {
 }
 
 function global:Prompt {
-    # 支持conda
-    if ($Env:CONDA_PROMPT_MODIFIER) {
-        $Env:CONDA_PROMPT_MODIFIER | Write-Host -NoNewline
+    # 如果传统 CLI 应用出现错误，打印错误信息
+    if ($global:LASTEXITCODE) { 
+        $private:errorPrompt = (certutil.exe -error $global:LASTEXITCODE)[0..1] | Join-String -Separator "`r`n"
+        Write-Host "`e[91;1m$errorPrompt`e[0m"
+        $global:LASTEXITCODE = 0
     }
+    # 显示 Conda 环境
+    Write-Host -NoNewline $env:CONDA_PROMPT_MODIFIER
     # 显示管理员模式
     if ($global:isAdmin) { 
         Write-Host "[ADMIN]" -NoNewline -BackgroundColor red 
@@ -32,20 +32,23 @@ function global:Prompt {
         $global:LastCommandID = (Get-History)[-1].Id
         $private:lastCommand = Get-History -Count 1
         $private:executionTime = $private:lastCommand.Duration
-        $private:displayMSLimit = [System.TimeSpan]::FromSeconds(5)
-        if ($private:executionTime -ge $private:displayMSLimit) {
-            $private:shortTime = [System.Math]::Round($private:executionTime.TotalSeconds, 1)
-            Write-Host -NoNewline -ForegroundColor Blue ("$private:shortTime" + "s ")
+        if ($private:executionTime -le [System.TimeSpan]::FromSeconds(5)) {
+            # <= 5000ms: 毫秒
+            $private:timeString = "$([System.Math]::Round($private:executionTime.TotalMilliseconds))ms"
+        }
+        elseif ($private:executionTime -le [System.TimeSpan]::FromSeconds(60)) {
+            # <= 60s: 秒
+            $private:timeString = "$([System.Math]::Round($private:executionTime.TotalSeconds, 1))s"
+        }
+        elseif ($private:executionTime -le [System.TimeSpan]::FromSeconds(3600)) {
+            # <= 60min: 分钟
+            $private:timeString = "$([System.Math]::Round($private:executionTime.TotalSeconds / 60, 1))min"
         }
         else {
-            $private:shortTime = [System.Math]::Round($private:executionTime.TotalMilliseconds)
-            Write-Host -NoNewline -ForegroundColor Blue ("$private:shortTime" + "ms ")
+            # > 1h：小时
+            $private:timeString = "$([System.Math]::Round($private:executionTime.TotalSeconds / 3600, 1))h"
         }
-    }
-    # 如果执行过命令，且命令出错，显示错误代码
-    if ($global:LASTEXITCODE) { 
-        Write-Host -NoNewline -ForegroundColor Red "[$global:LASTEXITCODE] " 
-        $global:LASTEXITCODE = 0
+        Write-Host -NoNewline -ForegroundColor Blue "$private:timeString "
     }
     # 将路径显示在标题中
     $private:shortPath = Get-Location | Split-Path -Leaf
@@ -54,7 +57,7 @@ function global:Prompt {
     return " $('→' * ($global:nestedPromptLevel + 1)) " # 改回默认输出颜色
 }
 
-# # 切换到Unicode（与conda有兼容性问题）
+# 切换到Unicode（与conda有兼容性问题）
 # chcp(65001)
 
 # 计算Admin身份
